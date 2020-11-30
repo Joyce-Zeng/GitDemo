@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/context
+       https://www.springframework.org/schema/context/spring-context.xsd http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd http://www.springframework.org/schema/aop https://www.springframework.org/schema/aop/spring-aop.xsd">
+    <!--spring扫描项目中的注解,指定需要扫描的基类包，多个包可用逗号隔开-->
+    <context:component-scan base-package="cn.smbms.*"/>
+    <!--引入配置文件-->
+    <context:property-placeholder location="database.properties"/>
+    <!--01.配置数据源-->
+    <bean id="dataSource" class="com.alibaba.druid.pool.DruidDataSource">
+        <property name="driverClassName" value="${jdbc.driver}"/>
+        <property name="url" value="${jdbc.url}"/>
+        <property name="username" value="${jdbc.username}"/>
+        <property name="password" value="${jdbc.password}"/>
+    </bean>
+    <!--02. 配置SqlSessionFactoryBean -->
+    <bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <!-- 引用数据源组件 -->
+        <property name="dataSource" ref="dataSource" />
+        <!-- 配置SQL映射文件信息 -->
+        <property name="mapperLocations">
+            <list>
+                <value>mapper/*.xml</value>
+            </list>
+        </property>
+        <!--配置别名-->
+        <property name="typeAliasesPackage" value="com.smbms.pojo"/>
+        <!--mybatis总配置文件-->
+        <property name="configuration">
+            <bean class="org.apache.ibatis.session.Configuration">
+                <!--开启驼峰命名规则-->
+                <property name="mapUnderscoreToCamelCase" value="true"/>
+                <!--开启最高权限自动映射-->
+                <property name="autoMappingBehavior" value="FULL"/>
+            </bean>
+        </property>
+    </bean>
+    <!-- 配置SqlSessionTemplate-->
+      <bean id="sqlSessionTemplate" class="org.mybatis.spring.SqlSessionTemplate">
+          <constructor-arg name="sqlSessionFactory" ref="sqlSessionFactory" />
+      </bean>
+  <!--  Provider配置DAO-->
+     <bean id="providerMapper" class="cn.smbms.dao.provider.ProviderMapperImpl">
+         <property name="sqlSession" ref="sqlSessionTemplate" />
+     </bean>
+    <!--Provider配置业务Bean-->
+     <bean id="providerService" class="cn.smbms.service.provider.ProviderServiceImpl">
+         <property name="providerMapper" ref="providerMapper" />
+     </bean>
+    <!--配置Mapper扫描器-->
+    <bean id="scannerConfigurer" class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property  name="basePackage" value="cn.smbms.dao"/>
+    </bean>
+    <!--配置扫描注解定义的业务Bean-->
+    <!--  <context:component-scan base-package="cn.smbms.service"/>-->
+
+    <!--定义事务管理器-->
+    <bean id="txManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>
+    <!--通过<tx:advice>标签为指定事务管理器设置事务属性-->
+    <tx:advice id="txAdvice" transaction-manager="txManager">
+        <!--定义属性,声明事务规则-->
+        <tx:attributes>
+            <tx:method name="find*" propagation="SUPPORTS"/>
+            <tx:method name="add*" propagation="REQUIRED"/>
+            <tx:method name="del*" propagation="REQUIRED"/>
+            <tx:method name="update*" propagation="REQUIRED"/>
+            <tx:method name="*" propagation="REQUIRED"/>
+        </tx:attributes>
+    </tx:advice>
+    <!--定义切面-->
+    <aop:config>
+        <!--定义切入点-->
+        <aop:pointcut id="pointcut" expression="execution(* cn.smbms.service..*.*(..))"/>
+        <!--将事务增强与切入点结合-->
+        <aop:advisor advice-ref="txAdvice" pointcut-ref="pointcut"/>
+    </aop:config>
+</beans>
